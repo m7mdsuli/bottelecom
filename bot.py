@@ -1288,6 +1288,7 @@ FCS: فحص الأخطاء، الحرف G يعني Good (الإطار سليم).
         context.user_data.update(state)
         context.user_data['difficulty'] = difficulty
         
+        await send_question_view(update, context, is_new_quiz=True)
 
                         
     elif data == "video_4":
@@ -2105,7 +2106,7 @@ async def post_init(application: Application):
     finally:
         conn.close()
 
-    message = "تم حل مشكلة اسئلة الفيديو الثاني , بالتوفيق !"
+    message = "تم حل مشكلة اسئلة الفيديو الثاني , بالتوفيق !\n\nيرجى الضغط على /start للبدء من جديد."
     
     for user_id in user_ids:
         try:
