@@ -439,7 +439,36 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await context.bot.send_message(chat_id=update.effective_chat.id, text=final_msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
     reset_user_progress(update.effective_user.id, None, context.bot_data['db_conn'])
+    async def notify_users_on_start(application: Application):
+    """
+    دالة تقوم بإرسال رسالة لجميع المستخدمين المسجلين في قاعدة البيانات
+    عند بدء تشغيل البوت.
+    """
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    try:
+        # جلب جميع أرقام المستخدمين (بدون تكرار)
+        cursor.execute("SELECT DISTINCT user_id FROM user_progress")
+        users = cursor.fetchall()
+    except Exception as e:
+        logging.error(f"Error fetching users for broadcast: {e}")
+        return
+    finally:
+        conn.close()
 
+    message = "📢 **البوت عاد للعمل!** 🟢\n\nيمكنكم متابعة الاختبار الآن، شاركوا البوت مع رفاقكم لتعم الفائدة. 🚀"
+
+    count = 0
+    for row in users:
+        user_id = row[0]
+        try:
+            await application.bot.send_message(chat_id=user_id, text=message, parse_mode="Markdown")
+            count += 1
+        except Exception as e:
+            # نتجاهل الأخطاء (مثل المستخدمين الذين قاموا بحظر البوت)
+            logging.warning(f"Could not send start message to {user_id}: {e}")
+    
+    print(f"✅ Broadcast sent to {count} users.")
 def main():
     if TOKEN == "YOUR_BOT_TOKEN_HERE":
         print("Error: Please set your bot token in the code.")
@@ -448,7 +477,8 @@ def main():
     conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     init_db(conn)
 
-    application = Application.builder().token(TOKEN).build()
+    # أضفنا .post_init(...) لتشغيل دالة الإشعار عند البداية
+    application = Application.builder().token(TOKEN).post_init(notify_users_on_start).build()
     
     application.bot_data['db_conn'] = conn
     application.bot_data['questions'] = load_all_questions()
