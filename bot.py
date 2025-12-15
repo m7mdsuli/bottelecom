@@ -10,8 +10,10 @@ from telegram.error import BadRequest
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 
-# ------------------- إعدادات البوت -------------------
-TOKEN = os.environ.get("BOT_TOKEN")
+# ------------------- إعدادات البوت الآمنة -------------------
+# سيأخذ البوت التوكن من متغيرات البيئة في Render
+TOKEN = os.environ.get("BOT_TOKEN") 
+
 CHANNEL_USERNAME = "@mishalinitiative"
 CHANNEL_ID = "@mishalinitiative"
 
@@ -24,30 +26,22 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# ------------------- السيرفر الوهمي (لحل مشكلة Render) -------------------
-# تم وضع الكلاس والدالة هنا بشكل صحيح مع المسافات المطلوبة
-# ------------------- السيرفر الوهمي (لحل مشكلة Render) -------------------
 # ------------------- السيرفر الوهمي (لوحة تحكم الويب) -------------------
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
-    # هذه الدالة ضرورية لـ UptimeRobot لكي لا يعطي خطأ 501
     def do_HEAD(self):
         self.send_response(200)
         self.end_headers()
 
-    # هذه الدالة تعرض صفحة الويب عند الدخول للرابط
     def do_GET(self):
-        # 1. إعداد الترويسة ليفهم المتصفح أن هذا HTML
         self.send_response(200)
         self.send_header('Content-type', 'text/html; charset=utf-8')
         self.end_headers()
 
-        # 2. جلب البيانات من قاعدة البيانات
         rows_html = ""
         try:
             if os.path.exists(DB_FILE):
                 conn = sqlite3.connect(DB_FILE)
                 cursor = conn.cursor()
-                # جلب البيانات وترتيبها حسب النتيجة الأعلى
                 cursor.execute("SELECT user_id, first_name, difficulty, current_question, score FROM user_progress ORDER BY score DESC") 
                 rows = cursor.fetchall()
                 conn.close()
@@ -55,7 +49,6 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
                 if not rows:
                      rows_html = "<tr><td colspan='5' style='text-align:center'>لا توجد بيانات حتى الآن</td></tr>"
                 else:
-                    # تحويل كل صف في قاعدة البيانات إلى سطر في جدول HTML
                     for row in rows:
                         user_id = row[0]
                         name = row[1] if row[1] else "غير معروف"
@@ -77,7 +70,6 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         except Exception as e:
             rows_html = f"<tr><td colspan='5'>خطأ في القراءة: {e}</td></tr>"
 
-        # 3. كود HTML و CSS لتصميم الصفحة
         html_content = f"""
         <!DOCTYPE html>
         <html lang="ar" dir="rtl">
@@ -122,20 +114,17 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         </body>
         </html>
         """
-        
-        # 4. إرسال الصفحة النهائية
         self.wfile.write(html_content.encode('utf-8'))
 
 def start_web_server():
-    # Render يوفر المنفذ عبر متغير البيئة PORT
     port = int(os.environ.get("PORT", 8080))
     server = HTTPServer(("0.0.0.0", port), SimpleHTTPRequestHandler)
     print(f"Web Dashboard listening on port {port}")
     server.serve_forever()
+
 # ------------------- دوال تحميل الأسئلة والعبارات -------------------
 
 def load_phrases(file_path):
-    """تحميل العبارات من ملف CSV."""
     try:
         df = pd.read_csv(file_path, encoding='utf-8')
         return df['Phrase_Text'].tolist()
@@ -147,9 +136,6 @@ def load_phrases(file_path):
         return []
 
 def load_all_questions():
-    """
-    تحميل الأسئلة من ملفات CSV لكل مستوى صعوبة.
-    """
     levels = ['easy', 'medium', 'hard']
     question_sets = {}
     
@@ -321,12 +307,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data.startswith("ans_"):
         difficulty = context.user_data.get('difficulty')
-        # === بداية التعديل: التحقق من ضياع الجلسة ===
+
         if difficulty is None:
             await query.answer("⚠️ انتهت صلاحية الجلسة.", show_alert=True)
             await query.edit_message_text("⚠️ **حدث تحديث للسيرفر وتم إعادة ضبط البيانات.**\n\nيرجى الضغط على /start للبدء من جديد.", parse_mode="Markdown")
             return
-        # === نهاية التعديل ===
+
         questions_for_level = context.bot_data['questions'][difficulty]
         
         _, q_idx, ans_idx = data.split("_")
@@ -439,12 +425,15 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await context.bot.send_message(chat_id=update.effective_chat.id, text=final_msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
     reset_user_progress(update.effective_user.id, None, context.bot_data['db_conn'])
-    async def notify_users_on_start(application: Application):
 
+# === دالة الإشعار الجماعي عند الإقلاع ===
+async def notify_users_on_start(application: Application):
+    """
+    إرسال رسالة ترحيب لجميع المستخدمين عند بدء تشغيل البوت
+    """
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     try:
-        # جلب جميع أرقام المستخدمين (بدون تكرار)
         cursor.execute("SELECT DISTINCT user_id FROM user_progress")
         users = cursor.fetchall()
     except Exception as e:
@@ -453,7 +442,7 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         conn.close()
 
-    message = "📢 **البوت عاد للعمل!** 🟢\n\nيمكنكم متابعة الاختبار الآن، شاركوا البوت مع رفاقكم لتعم الفائدة. 🚀"
+    message = "📢 **البوت عاد للعمل!** 🟢\n\nشاركوا البوت مع رفاقكم لتعم الفائدة. 🚀"
 
     count = 0
     for row in users:
@@ -462,19 +451,19 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await application.bot.send_message(chat_id=user_id, text=message, parse_mode="Markdown")
             count += 1
         except Exception as e:
-            # نتجاهل الأخطاء (مثل المستخدمين الذين قاموا بحظر البوت)
-            logging.warning(f"Could not send start message to {user_id}: {e}")
-    
-    print(f"✅ Broadcast sent to {count} users.")
+            # تجاهل الأخطاء (مثل الحظر)
+            pass
+    print(f"Broadcast sent to {count} users.")
+
 def main():
-    if TOKEN == "YOUR_BOT_TOKEN_HERE":
-        print("Error: Please set your bot token in the code.")
+    if not TOKEN:
+        print("Error: Please set BOT_TOKEN in environment variables.")
         return
 
     conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     init_db(conn)
 
-    # أضفنا .post_init(...) لتشغيل دالة الإشعار عند البداية
+    # إضافة .post_init(notify_users_on_start) لتفعيل الرسالة الجماعية
     application = Application.builder().token(TOKEN).post_init(notify_users_on_start).build()
     
     application.bot_data['db_conn'] = conn
@@ -488,7 +477,7 @@ def main():
     application.add_handler(CallbackQueryHandler(button_handler))
 
     # بدء السيرفر الوهمي في خيط منفصل
-    print("Starting dummy web server...")
+    print("Starting Web Dashboard...")
     threading.Thread(target=start_web_server, daemon=True).start()
 
     print("Bot is running...")
