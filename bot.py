@@ -26,11 +26,17 @@ logging.basicConfig(
 
 # ------------------- السيرفر الوهمي (لحل مشكلة Render) -------------------
 # تم وضع الكلاس والدالة هنا بشكل صحيح مع المسافات المطلوبة
+# ------------------- السيرفر الوهمي (لحل مشكلة Render) -------------------
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
         self.wfile.write(b"Bot is running!")
+
+    # أضفنا هذه الدالة لكي نرد على UptimeRobot بدون أخطاء
+    def do_HEAD(self):
+        self.send_response(200)
+        self.end_headers()
 
 def start_web_server():
     # Render يوفر المنفذ عبر متغير البيئة PORT
