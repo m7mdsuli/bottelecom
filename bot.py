@@ -260,8 +260,15 @@ async def send_level_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(welcome_msg, reply_markup=InlineKeyboardMarkup(keyboard))
 
+AUTHORIZED_ID = 659622432
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+
+    if user.id != AUTHORIZED_ID:
+        await update.message.reply_text("عم يتم تجهيز اختبار مخبر الإتصالات 😉")
+        return
+
     conn = context.bot_data['db_conn']
     context.user_data.update(get_user_state(user.id, user.first_name, conn))
     
@@ -273,6 +280,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
+
+    if user.id != AUTHORIZED_ID:
+        await query.answer()
+        await query.message.reply_text("عم يتم تجهيز اختبار مخبر الإتصالات 😉")
+        return
+
     data = query.data
     conn = context.bot_data['db_conn']
     
@@ -429,7 +442,7 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # === دالة الإشعار الجماعي عند الإقلاع ===
 async def notify_users_on_start(application: Application):
     """
-    إرسال رسالة ترحيب لجميع المستخدمين عند بدء تشغيل البوت
+    إرسال رسالة لجميع المستخدمين (عدا المطور) عند بدء تشغيل البوت
     """
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -442,11 +455,13 @@ async def notify_users_on_start(application: Application):
     finally:
         conn.close()
 
-    message = "📢 **البوت عاد للعمل!** 🟢\n\nشاركوا البوت مع رفاقكم لتعم الفائدة. 🚀"
+    message = "عم يتم تجهيز اختبار مخبر الإتصالات 😉"
 
     count = 0
     for row in users:
         user_id = row[0]
+        if user_id == AUTHORIZED_ID:
+            continue
         try:
             await application.bot.send_message(chat_id=user_id, text=message, parse_mode="Markdown")
             count += 1
