@@ -7,14 +7,13 @@ import pandas as pd
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from telegram.error import BadRequest
-
-# === إضافة مكتبات السيرفر ===
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
+
 # ------------------- إعدادات البوت -------------------
-TOKEN = "8003555082:AAHPSa3zLIhJkVhaIF471D_JDhglV5EfL2A"  # ضع توكن البوت هنا
-CHANNEL_USERNAME = "@mishalinitiative" # معرف القناة
-CHANNEL_ID = "@mishalinitiative" # يمكن استخدامه للتحقق
+TOKEN = "8003555082:AAHPSa3zLIhJkVhaIF471D_JDhglV5EfL2A"
+CHANNEL_USERNAME = "@mishalinitiative"
+CHANNEL_ID = "@mishalinitiative"
 
 # ملف قاعدة البيانات
 DB_FILE = "user_progress.db"
@@ -24,6 +23,21 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
+
+# ------------------- السيرفر الوهمي (لحل مشكلة Render) -------------------
+# تم وضع الكلاس والدالة هنا بشكل صحيح مع المسافات المطلوبة
+class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is running!")
+
+def start_web_server():
+    # Render يوفر المنفذ عبر متغير البيئة PORT
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), SimpleHTTPRequestHandler)
+    print(f"Dummy server listening on port {port}")
+    server.serve_forever()
 
 # ------------------- دوال تحميل الأسئلة والعبارات -------------------
 
@@ -98,12 +112,10 @@ def get_user_state(user_id, first_name, conn):
     if row:
         answers = json.loads(row[4])
         state = {'first_name': row[0], 'difficulty': row[1], 'q_index': row[2], 'score': row[3], 'answers': answers, 'question_msg_id': row[5], 'status_msg_id': row[6]}
-        # Update name if it has changed
         if state['first_name'] != first_name:
             cursor.execute("UPDATE user_progress SET first_name = ? WHERE user_id = ?", (first_name, user_id))
             conn.commit()
             state['first_name'] = first_name
-
     else:
         state = {'first_name': first_name, 'difficulty': None, 'q_index': 0, 'score': 0, 'answers': {}, 'question_msg_id': None, 'status_msg_id': None}
         cursor.execute("INSERT INTO user_progress (user_id, first_name) VALUES (?, ?)", (user_id, first_name))
@@ -144,26 +156,17 @@ async def check_subscription(user_id, context: ContextTypes.DEFAULT_TYPE):
         return False
 
 async def send_subscription_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Sends the message prompting the user to subscribe."""
     keyboard = [
         [InlineKeyboardButton("اشترك في القناة 📢", url=f"https://t.me/{CHANNEL_USERNAME.replace('@','')}")],
         [InlineKeyboardButton("تم الاشتراك ✅", callback_data="check_sub")]
     ]
+    text = "⚠️ **شرط الاستخدام:** يجب عليك الاشتراك في القناة أولاً:"
     if update.callback_query:
-        await update.callback_query.edit_message_text(
-            "⚠️ **شرط الاستخدام:** يجب عليك الاشتراك في القناة أولاً:",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="Markdown"
-        )
+        await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
     else:
-        await update.message.reply_text(
-            "⚠️ **شرط الاستخدام:** يجب عليك الاشتراك في القناة أولاً:",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="Markdown"
-        )
+        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
 async def send_level_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Sends the level choice message."""
     user = update.effective_user
     welcome_msg = f"أهلاً بك يا {user.first_name}! 📡\n\nاختر مستوى الصعوبة للبدء."
     keyboard = [
@@ -200,7 +203,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if await check_subscription(user.id, context):
             await send_level_choice(update, context)
         else:
-            await query.answer("❌ لم يتم العثور على اشتراكك. يرجى الاشتراك ثم الضغط على الزر.", show_alert=True)
+            await query.answer("❌ لم يتم العثور على اشتراكك.", show_alert=True)
 
     elif data.startswith("level_"):
         if not await check_subscription(user.id, context):
@@ -307,7 +310,7 @@ async def send_question_view(update: Update, context: ContextTypes.DEFAULT_TYPE,
         else:
             await context.bot.edit_message_text(chat_id=user_id, message_id=context.user_data['question_msg_id'], text=q_message_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
             await context.bot.edit_message_text(chat_id=user_id, message_id=context.user_data['status_msg_id'], text=status_message_text, reply_markup=None, parse_mode="Markdown")
-    except BadRequest: # Fallback for markdown errors
+    except BadRequest:
         if is_new_quiz:
             q_msg = await context.bot.send_message(chat_id=user_id, text=q_message_text, reply_markup=InlineKeyboardMarkup(keyboard))
             status_msg = await context.bot.send_message(chat_id=user_id, text=status_message_text)
@@ -338,19 +341,6 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id, text=final_msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
     reset_user_progress(update.effective_user.id, None, context.bot_data['db_conn'])
 
-# === إضافة كلاس السيرفر الوهمي ===
-    class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Bot is running!")
-
-    def start_web_server():
-    port = int(os.environ.get("PORT", 8080))
-    server = HTTPServer(("0.0.0.0", port), SimpleHTTPRequestHandler)
-    print(f"Dummy server listening on port {port}")
-    server.serve_forever()
-# ==============================
 def main():
     if TOKEN == "YOUR_BOT_TOKEN_HERE":
         print("Error: Please set your bot token in the code.")
@@ -370,10 +360,11 @@ def main():
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button_handler))
-    # === تشغيل السيرفر الوهمي قبل تشغيل البوت ===
+
+    # بدء السيرفر الوهمي في خيط منفصل
     print("Starting dummy web server...")
     threading.Thread(target=start_web_server, daemon=True).start()
-    # ==========================================
+
     print("Bot is running...")
     application.run_polling()
 
