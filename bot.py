@@ -1221,6 +1221,7 @@ FCS: فحص الأخطاء، الحرف G يعني Good (الإطار سليم).
         context.user_data.update(state)
         context.user_data['difficulty'] = difficulty
         
+        await send_question_view(update, context, is_new_quiz=True)
 
 
     elif data == "video_3_finish":
@@ -1964,8 +1965,7 @@ FCS: فحص الأخطاء، الحرف G يعني Good (الإطار سليم).
         await send_question_view(update, context)
 
     elif data == "restart_quiz":
-        await query.delete_message()
-        await send_main_menu(update, context)
+        await start(update, context)
 
 async def send_question_view(update: Update, context: ContextTypes.DEFAULT_TYPE, is_new_quiz: bool = False):
     user_id = update.effective_user.id
@@ -2105,7 +2105,7 @@ async def post_init(application: Application):
     finally:
         conn.close()
 
-    message = "عاد البوت للعمل بإختبارات مخبر الاتصالات ,\nشاركوه مع رفقاتكن حتى الكل يستفيد \nشاركوه مع رفقاتكن حتى الكل يستفيد"
+    message = "تم حل مشكلة اسئلة الفيديو الثاني , بالتوفيق !"
     
     for user_id in user_ids:
         try:
