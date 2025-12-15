@@ -8,6 +8,9 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from telegram.error import BadRequest
 
+# === إضافة مكتبات السيرفر ===
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
 # ------------------- إعدادات البوت -------------------
 TOKEN = "8003555082:AAHPSa3zLIhJkVhaIF471D_JDhglV5EfL2A"  # ضع توكن البوت هنا
 CHANNEL_USERNAME = "@mishalinitiative" # معرف القناة
@@ -335,7 +338,19 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id, text=final_msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
     reset_user_progress(update.effective_user.id, None, context.bot_data['db_conn'])
 
+# === إضافة كلاس السيرفر الوهمي ===
+    class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is running!")
 
+    def start_web_server():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), SimpleHTTPRequestHandler)
+    print(f"Dummy server listening on port {port}")
+    server.serve_forever()
+# ==============================
 def main():
     if TOKEN == "YOUR_BOT_TOKEN_HERE":
         print("Error: Please set your bot token in the code.")
@@ -355,7 +370,10 @@ def main():
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button_handler))
-
+    # === تشغيل السيرفر الوهمي قبل تشغيل البوت ===
+    print("Starting dummy web server...")
+    threading.Thread(target=start_web_server, daemon=True).start()
+    # ==========================================
     print("Bot is running...")
     application.run_polling()
 
