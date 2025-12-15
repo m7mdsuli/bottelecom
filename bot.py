@@ -440,10 +440,7 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id, text=final_msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
     reset_user_progress(update.effective_user.id, None, context.bot_data['db_conn'])
     async def notify_users_on_start(application: Application):
-    """
-    دالة تقوم بإرسال رسالة لجميع المستخدمين المسجلين في قاعدة البيانات
-    عند بدء تشغيل البوت.
-    """
+
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     try:
