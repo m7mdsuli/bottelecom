@@ -4,6 +4,7 @@ import os
 import random
 import sqlite3
 import pandas as pd
+import zipfile
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 from telegram.error import BadRequest
@@ -2111,13 +2112,40 @@ async def post_init(application: Application):
             await application.bot.send_message(chat_id=user_id, text=message)
         except Exception as e:
             logging.warning(f"Failed to send broadcast to {user_id}: {e}")
-
+def setup_course_files():
+    """
+    تقوم هذه الدالة بفك ضغط ملفات الفيديو والصور عند بدء التشغيل
+    """
+    # قائمة بملفاتك المضغوطة
+    zip_files = ['video1.zip', 'video2.zip', 'video3.zip', 'video4.zip']
+    
+    print("--- Starting File Extraction ---")
+    for zip_file in zip_files:
+        # اسم المجلد المتوقع (بدون .zip)
+        folder_name = zip_file.replace('.zip', '')
+        
+        # 1. هل الملف المضغوط موجود؟
+        if os.path.exists(zip_file):
+            # 2. هل المجلد غير موجود؟ (عشان ما يفك الضغط مرتين)
+            if not os.path.exists(folder_name):
+                print(f"Extracting {zip_file}...")
+                try:
+                    with zipfile.ZipFile(zip_file, 'r') as zip_ref:
+                        zip_ref.extractall('.') # فك في المسار الحالي
+                    print(f"✅ {folder_name} is ready.")
+                except zipfile.BadZipFile:
+                    print(f"❌ Error: {zip_file} is corrupted.")
+            else:
+                print(f"ℹ️ {folder_name} already exists. Skipping.")
+        else:
+            print(f"⚠️ Warning: {zip_file} not found in root directory.")
+    print("--- File Extraction Finished ---")
 
 def main():
     if not TOKEN:
         print("Error: Please set BOT_TOKEN in environment variables.")
         return
-
+    setup_course_files()
     conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     init_db(conn)
 
