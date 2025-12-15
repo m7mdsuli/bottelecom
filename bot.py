@@ -27,24 +27,111 @@ logging.basicConfig(
 # ------------------- السيرفر الوهمي (لحل مشكلة Render) -------------------
 # تم وضع الكلاس والدالة هنا بشكل صحيح مع المسافات المطلوبة
 # ------------------- السيرفر الوهمي (لحل مشكلة Render) -------------------
+# ------------------- السيرفر الوهمي (لوحة تحكم الويب) -------------------
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Bot is running!")
-
-    # أضفنا هذه الدالة لكي نرد على UptimeRobot بدون أخطاء
+    # هذه الدالة ضرورية لـ UptimeRobot لكي لا يعطي خطأ 501
     def do_HEAD(self):
         self.send_response(200)
         self.end_headers()
+
+    # هذه الدالة تعرض صفحة الويب عند الدخول للرابط
+    def do_GET(self):
+        # 1. إعداد الترويسة ليفهم المتصفح أن هذا HTML
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html; charset=utf-8')
+        self.end_headers()
+
+        # 2. جلب البيانات من قاعدة البيانات
+        rows_html = ""
+        try:
+            if os.path.exists(DB_FILE):
+                conn = sqlite3.connect(DB_FILE)
+                cursor = conn.cursor()
+                # جلب البيانات وترتيبها حسب النتيجة الأعلى
+                cursor.execute("SELECT user_id, first_name, difficulty, current_question, score FROM user_progress ORDER BY score DESC") 
+                rows = cursor.fetchall()
+                conn.close()
+
+                if not rows:
+                     rows_html = "<tr><td colspan='5' style='text-align:center'>لا توجد بيانات حتى الآن</td></tr>"
+                else:
+                    # تحويل كل صف في قاعدة البيانات إلى سطر في جدول HTML
+                    for row in rows:
+                        user_id = row[0]
+                        name = row[1] if row[1] else "غير معروف"
+                        diff = row[2] if row[2] else "-"
+                        q_num = row[3]
+                        score = row[4]
+                        
+                        rows_html += f"""
+                        <tr>
+                            <td>{user_id}</td>
+                            <td>{name}</td>
+                            <td>{diff}</td>
+                            <td>{q_num}</td>
+                            <td><strong>{score}</strong></td>
+                        </tr>
+                        """
+            else:
+                rows_html = "<tr><td colspan='5' style='text-align:center'>لم يتم إنشاء قاعدة البيانات بعد.</td></tr>"
+        except Exception as e:
+            rows_html = f"<tr><td colspan='5'>خطأ في القراءة: {e}</td></tr>"
+
+        # 3. كود HTML و CSS لتصميم الصفحة
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="ar" dir="rtl">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>نتائج اختبار الاتصالات</title>
+            <style>
+                body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; }}
+                .container {{ max-width: 900px; margin: 0 auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+                h1 {{ text-align: center; color: #2c3e50; margin-bottom: 20px; }}
+                table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
+                th, td {{ padding: 12px 15px; text-align: right; border-bottom: 1px solid #ddd; }}
+                th {{ background-color: #34495e; color: white; }}
+                tr:nth-child(even) {{ background-color: #f8f9fa; }}
+                tr:hover {{ background-color: #e2e6ea; }}
+                .refresh-btn {{ display: block; width: fit-content; margin: 20px auto; padding: 10px 20px; background: #27ae60; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; transition: 0.3s; }}
+                .refresh-btn:hover {{ background: #219150; transform: scale(1.05); }}
+                .status {{ text-align: center; color: #7f8c8d; font-size: 0.9em; margin-top: 20px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>📊 لوحة تقدم المشاركين</h1>
+                <a href="/" class="refresh-btn">🔄 تحديث القائمة</a>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID المستخدم</th>
+                            <th>الاسم</th>
+                            <th>المستوى</th>
+                            <th>وصل للسؤال</th>
+                            <th>النتيجة</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows_html}
+                    </tbody>
+                </table>
+                <p class="status">Bot Status: Online ✅ | Port: {os.environ.get("PORT", 8080)}</p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # 4. إرسال الصفحة النهائية
+        self.wfile.write(html_content.encode('utf-8'))
 
 def start_web_server():
     # Render يوفر المنفذ عبر متغير البيئة PORT
     port = int(os.environ.get("PORT", 8080))
     server = HTTPServer(("0.0.0.0", port), SimpleHTTPRequestHandler)
-    print(f"Dummy server listening on port {port}")
+    print(f"Web Dashboard listening on port {port}")
     server.serve_forever()
-
 # ------------------- دوال تحميل الأسئلة والعبارات -------------------
 
 def load_phrases(file_path):
@@ -234,6 +321,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data.startswith("ans_"):
         difficulty = context.user_data.get('difficulty')
+        # === بداية التعديل: التحقق من ضياع الجلسة ===
+        if difficulty is None:
+            await query.answer("⚠️ انتهت صلاحية الجلسة.", show_alert=True)
+            await query.edit_message_text("⚠️ **حدث تحديث للسيرفر وتم إعادة ضبط البيانات.**\n\nيرجى الضغط على /start للبدء من جديد.", parse_mode="Markdown")
+            return
+        # === نهاية التعديل ===
         questions_for_level = context.bot_data['questions'][difficulty]
         
         _, q_idx, ans_idx = data.split("_")
