@@ -11,7 +11,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 
 # ------------------- إعدادات البوت -------------------
-TOKEN = "8003555082:AAHPSa3zLIhJkVhaIF471D_JDhglV5EfL2A"
+TOKEN = os.environ.get("BOT_TOKEN")
 CHANNEL_USERNAME = "@mishalinitiative"
 CHANNEL_ID = "@mishalinitiative"
 
