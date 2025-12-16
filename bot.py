@@ -2150,7 +2150,7 @@ def main():
     conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     init_db(conn)
 
-    application = Application.builder().token(TOKEN).post_init(post_init).build()
+   ## application = Application.builder().token(TOKEN).post_init(post_init).build()
     
     application.bot_data['db_conn'] = conn
     application.bot_data['questions'] = load_all_questions()
