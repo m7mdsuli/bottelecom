@@ -2083,7 +2083,7 @@ async def handle_video_and_get_id(update: Update, context: ContextTypes.DEFAULT_
             )
 
 
-async def post_init(application: Application):
+""" async def post_init(application: Application):
     """
     Sends a broadcast message to all users when the bot starts.
     """
@@ -2113,6 +2113,7 @@ async def post_init(application: Application):
             await application.bot.send_message(chat_id=user_id, text=message)
         except Exception as e:
             logging.warning(f"Failed to send broadcast to {user_id}: {e}")
+    """
 def setup_course_files():
     """
     تقوم هذه الدالة بفك ضغط ملفات الفيديو والصور عند بدء التشغيل
