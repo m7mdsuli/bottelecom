@@ -14,8 +14,8 @@ import asyncio
 
 # ------------------- إعدادات البوت الآمنة -------------------
 # سيأخذ البوت التوكن من متغيرات البيئة في Render
-# TOKEN = os.environ.get("BOT_TOKEN") 
-TOKEN = "8003555082:AAH9ZE0rm0Zwvm7p4I2GTjV045uoa3GWvXw"
+TOKEN = os.environ.get("BOT_TOKEN") 
+
 CHANNEL_USERNAME = "@mishalinitiative"
 CHANNEL_ID = "@mishalinitiative"
 
