@@ -7391,11 +7391,47 @@ def debug_log(location, message, data=None, hypothesis_id=None):
     except Exception as e:
            print(f"Failed to write debug log: {e}")
     
+class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
+
+    # هذه الدالة لـ UptimeRobot
+
+    def do_HEAD(self):
+
+        self.send_response(200)
+
+        self.end_headers()
+
+
+
+    # هذه الدالة لأي شخص يفتح الرابط (لن يرى أي بيانات)
+
+    def do_GET(self):
+
+        self.send_response(200)
+
+        self.end_headers()
+
+        self.wfile.write(b"Bot is active and running.")
+
+
+
+def start_web_server():
+
+    # Render يعطينا رقم المنفذ هنا
+
+    port = int(os.environ.get("PORT", 8080))
+
+    server = HTTPServer(("0.0.0.0", port), SimpleHTTPRequestHandler)
+
+    print(f"Dummy server listening on port {port}")
+
+    server.serve_forever()
 # #endregion
     
 async def main():
     debug_log("bot.py:main", "Starting main function", {}, "A")
 
+    
     if not TOKEN:
         debug_log("bot.py:main", "TOKEN is missing", {"TOKEN": TOKEN}, "B")
         print("Error: Please set BOT_TOKEN in environment variables.")
@@ -7423,7 +7459,17 @@ async def main():
     except Exception as e:
         debug_log("bot.py:main", "Failed to create Application", {"error": str(e)}, "C")
         raise
+    print("Starting dummy web server...")
+
+    threading.Thread(target=start_web_server, daemon=True).start()
+
     
+
+
+
+    print("Bot is running...")
+
+    application.run_polling()
     application.bot_data['db_conn'] = conn
     application.bot_data['questions'] = load_all_questions()
     mazen_texts, mazen_srd = load_mazen_test_data()
