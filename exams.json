@@ -1,0 +1,100 @@
+{
+  "exam_1766227737": {
+    "button_text": "مذاكرة د. بسام",
+    "question_type": "both",
+    "explanation_file": "exams/exam_1766227737_explanation.csv",
+    "media_attachments": {},
+    "mcq_files_by_id": {
+      "1": "exams/exam_1766227737_mcq_id1.csv",
+      "2": "exams/exam_1766227737_mcq_id2.csv",
+      "3": "exams/exam_1766227737_mcq_id3.csv",
+      "4": "exams/exam_1766227737_mcq_id4.csv",
+      "5": "exams/exam_1766227737_mcq_id5.csv",
+      "6": "exams/exam_1766227737_mcq_id6.csv"
+    },
+    "narrative_files_by_id": {
+      "1": "exams/exam_1766227737_narrative_id1.csv",
+      "2": "exams/exam_1766227737_narrative_id2.csv",
+      "3": "exams/exam_1766227737_narrative_id3.csv",
+      "4": "exams/exam_1766227737_narrative_id4.csv",
+      "5": "exams/exam_1766227737_narrative_id5.csv",
+      "6": "exams/exam_1766227737_narrative_id6.csv"
+    }
+  },
+  "exam_1766355253": {
+    "button_text": "test",
+    "question_type": "both",
+    "explanation_file": "exams/exam_1766355253_explanation.csv",
+    "media_attachments": {},
+    "mcq_files_by_id": {
+      "1": "exams/exam_1766355253_mcq_id1.csv"
+    },
+    "narrative_files_by_id": {
+      "1": "exams/exam_1766355253_narrative_id1.csv"
+    }
+  },
+  "exam_1766400791": {
+    "button_text": "testtt",
+    "question_type": "both",
+    "is_hidden": false,
+    "explanation_file": "exams/exam_1766400791_explanation.csv",
+    "explanation_file_id": "BQACAgQAAxkBAAIbg2lJIxTagn7j0ODrDvrb-nhRuCy1AAK-GAACQa9JUlL2myN58hLnNgQ",
+    "media_attachments": {},
+    "mcq_files_by_id": {
+      "1": "exams/exam_1766400791_mcq_id1.csv",
+      "2": "exams/exam_1766400791_mcq_id2.csv",
+      "3": "exams/exam_1766400791_mcq_id3.csv",
+      "4": "exams/exam_1766400791_mcq_id4.csv"
+    },
+    "mcq_file_ids_by_id": {
+      "1": "BQACAgQAAxkBAAIbhWlJIyePI051AoqeCMswNa45eSQiAAK_GAACQa9JUgVwgeQIdZlHNgQ",
+      "2": "BQACAgQAAxkBAAIbh2lJIzDC0rd5Q3J3hvkYkJZ6Q-1MAALAGAACQa9JUvP6yYLRxRz7NgQ",
+      "3": "BQACAgQAAxkBAAIbiWlJIzrokg335gtcIEHoKxhcQzibAALBGAACQa9JUj_HYNzI1xF6NgQ",
+      "4": "BQACAgQAAxkBAAIbi2lJI0c-BtxCWz2fuA31Y3VroPv2AALCGAACQa9JUvfjxze-K41qNgQ"
+    },
+    "narrative_files_by_id": {
+      "1": "exams/exam_1766400791_narrative_id1.csv",
+      "2": "exams/exam_1766400791_narrative_id2.csv",
+      "3": "exams/exam_1766400791_narrative_id3.csv",
+      "4": "exams/exam_1766400791_narrative_id4.csv"
+    },
+    "narrative_file_ids_by_id": {
+      "1": "BQACAgQAAxkBAAIbjWlJI1NBaWYOZgU4Qom1EkPalpX3AALDGAACQa9JUhHQuDehChk3NgQ",
+      "2": "BQACAgQAAxkBAAIbj2lJI1uMFJGt8OyLEtuB9n6pC8vEAALEGAACQa9JUjDYLpRKL8YDNgQ",
+      "3": "BQACAgQAAxkBAAIbkWlJI2TKUgjsOrSatIFZ6fMpYThMAALFGAACQa9JUjzuT56Fl377NgQ",
+      "4": "BQACAgQAAxkBAAIbk2lJI2tnsmj74QMyBQLaiXJJAAFNaAACxhgAAkGvSVI5kmKFqTFP8TYE"
+    }
+  },
+  "exam_1766403407": {
+    "button_text": "بنية البروتوكول المرجعي",
+    "question_type": "both",
+    "is_hidden": false,
+    "explanation_file": "exams/exam_1766403407_explanation.csv",
+    "explanation_file_id": "BQACAgQAAxkBAAIcZWlJLU4DG8rBN3Jsm8qAHW1p6gKVAALXGAACQa9JUgdRIe0um4oWNgQ",
+    "media_attachments": {},
+    "mcq_files_by_id": {
+      "1": "exams/exam_1766403407_mcq_id1.csv",
+      "2": "exams/exam_1766403407_mcq_id2.csv",
+      "3": "exams/exam_1766403407_mcq_id3.csv",
+      "4": "exams/exam_1766403407_mcq_id4.csv"
+    },
+    "mcq_file_ids_by_id": {
+      "1": "BQACAgQAAxkBAAIcZ2lJLVr35KEeF5z9Esp8O_cElsBHAALYGAACQa9JUqSbAthk5gjzNgQ",
+      "2": "BQACAgQAAxkBAAIcaWlJLWAlBVQZPAvXxjoTXUYWVSPJAALZGAACQa9JUmN39B49YwRpNgQ",
+      "3": "BQACAgQAAxkBAAIca2lJLWdS9Ngp9OJRs9wj5G24YLDAAALaGAACQa9JUh_Rt9XPB1uPNgQ",
+      "4": "BQACAgQAAxkBAAIcbWlJLW3SAxO0B8DgbYQOBuca6FuOAALbGAACQa9JUnd_8kLndoIbNgQ"
+    },
+    "narrative_files_by_id": {
+      "1": "exams/exam_1766403407_narrative_id1.csv",
+      "2": "exams/exam_1766403407_narrative_id2.csv",
+      "3": "exams/exam_1766403407_narrative_id3.csv",
+      "4": "exams/exam_1766403407_narrative_id4.csv"
+    },
+    "narrative_file_ids_by_id": {
+      "1": "BQACAgQAAxkBAAIcb2lJLXR9VK7i0Wmj1vm_AegQvBVXAALcGAACQa9JUhQOi2LfT_a6NgQ",
+      "2": "BQACAgQAAxkBAAIccWlJLXr4jaWIuy5PKn9ay4dIhTTcAALdGAACQa9JUoKSIDVTe-s9NgQ",
+      "3": "BQACAgQAAxkBAAIcc2lJLYJgm0ORkdqJtNb2SXZCUw_LAALeGAACQa9JUrUUknp8eGAJNgQ",
+      "4": "BQACAgQAAxkBAAIcdWlJLYmVAAF-XQo7B0EYYjNtvkdhvQAC3xgAAkGvSVLxWnoMSpVvtzYE"
+    }
+  }
+}
