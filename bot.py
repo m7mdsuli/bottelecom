@@ -7402,7 +7402,6 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
 
-
     # هذه الدالة لأي شخص يفتح الرابط (لن يرى أي بيانات)
 
     def do_GET(self):
@@ -7428,89 +7427,71 @@ def start_web_server():
     server.serve_forever()
 # #endregion
     
-async def main():
-    debug_log("bot.py:main", "Starting main function", {}, "A")
-
-    
+def main():
+    # 1. التحقق من التوكن
     if not TOKEN:
-        debug_log("bot.py:main", "TOKEN is missing", {"TOKEN": TOKEN}, "B")
         print("Error: Please set BOT_TOKEN in environment variables.")
         return
 
-    debug_log("bot.py:main", "TOKEN found", {"TOKEN_length": len(TOKEN)}, "B")
-
+    # 2. إعداد الملفات وقاعدة البيانات
     setup_course_files()
-    # Connect to database
-    # NOTE: On Render, SQLite database will persist in the filesystem.
-    # However, for production with frequent redeployments, consider:
-    # 1. Using Render's PostgreSQL database service (recommended)
-    # 2. Using Render's Persistent Disk/Volume for SQLite
-    # 3. Setting up automatic database backup to external storage
-    # The exams data is now stored in the database (dynamic_exams table),
-    # which ensures data persistence across deployments.
     conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     init_db(conn)
 
-    debug_log("bot.py:main", "About to create Application", {"TOKEN_prefix": TOKEN[:10] + "..."}, "C")
+    # 3. بناء التطبيق
+    application = Application.builder().token(TOKEN).build()
 
-    try:
-        application = Application.builder().token(TOKEN).build()
-        debug_log("bot.py:main", "Application created successfully", {}, "C")
-    except Exception as e:
-        debug_log("bot.py:main", "Failed to create Application", {"error": str(e)}, "C")
-        raise
-    print("Starting dummy web server...")
-
-    threading.Thread(target=start_web_server, daemon=True).start()
-
-    
-
-
-
-    print("Bot is running...")
-
-    application.run_polling()
+    # 4. تحميل كافة البيانات (يجب أن يتم قبل التشغيل)
     application.bot_data['db_conn'] = conn
     application.bot_data['questions'] = load_all_questions()
-    mazen_texts, mazen_srd = load_mazen_test_data()
-    application.bot_data['mazen_texts'] = mazen_texts
-    application.bot_data['mazen_srd'] = mazen_srd
+    
+    # تحميل بيانات مازن
+    try:
+        mazen_texts, mazen_srd = load_mazen_test_data()
+        application.bot_data['mazen_texts'] = mazen_texts
+        application.bot_data['mazen_srd'] = mazen_srd
+    except Exception as e:
+        logging.warning(f"Could not load Mazen data: {e}")
 
+    # تحميل العبارات
     application.bot_data['correct_phrases'] = load_phrases('Correct_Phrases.csv')
     application.bot_data['wrong_phrases'] = load_phrases('Wrong_Phrases.csv')
     application.bot_data['thinking_phrases'] = load_phrases('Thinking_Phrases.csv')
 
+    # 5. إضافة كل الهاندلرز (Handlers)
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("admin", handle_admin_command))
-    # Command to get file ID
-    application.add_handler(CommandHandler("getid", handle_video_and_get_id))
-    # Handler for direct video messages
-    application.add_handler(MessageHandler(filters.VIDEO & ~filters.COMMAND, handle_video_and_get_id))
-    # Admin text handler (broadcast/search) - only for admin users (MUST be before handle_start_button)
-    application.add_handler(MessageHandler(filters.TEXT & filters.User(ADMIN_TELEGRAM_ID) & ~filters.COMMAND, handle_admin_text))
-    # Handler for start button (for non-admin users only)
+    
+    # التحقق من وجود معرف الأدمن لإضافة أوامره
+    if ADMIN_TELEGRAM_ID:
+        application.add_handler(CommandHandler("admin", handle_admin_command))
+        application.add_handler(CommandHandler("getid", handle_video_and_get_id))
+        application.add_handler(MessageHandler(filters.VIDEO & ~filters.COMMAND, handle_video_and_get_id))
+        # أمر النصوص الخاص بالأدمن (يجب أن يكون قبل معالج الأزرار العادية)
+        application.add_handler(MessageHandler(filters.TEXT & filters.User(ADMIN_TELEGRAM_ID) & ~filters.COMMAND, handle_admin_text))
+        application.add_handler(MessageHandler(filters.Document.ALL & filters.User(ADMIN_TELEGRAM_ID) & ~filters.COMMAND, handle_admin_document))
+        application.add_handler(MessageHandler((filters.PHOTO | filters.VIDEO) & filters.User(ADMIN_TELEGRAM_ID) & ~filters.COMMAND, handle_admin_media))
+    
+    # الهاندلرز العامة لباقي المستخدمين
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_start_button))
-    # Admin document handler (CSV uploads for exams)
-    application.add_handler(MessageHandler(filters.Document.ALL & filters.User(ADMIN_TELEGRAM_ID) & ~filters.COMMAND, handle_admin_document))
-    # Admin photo/video handler (for exam media attachments)
-    application.add_handler(MessageHandler((filters.PHOTO | filters.VIDEO) & filters.User(ADMIN_TELEGRAM_ID) & ~filters.COMMAND, handle_admin_media))
     application.add_handler(CallbackQueryHandler(button_handler))
 
-    # Load exams (from database if available, otherwise from JSON)
+    # 6. تحميل الاختبارات والقوائم من قاعدة البيانات
     application.bot_data['exams'] = load_exams(conn)
     application.bot_data['menus'] = load_menus(conn)
     
-    # Restore missing exam buttons from database
+    # --- كود استعادة الأزرار المفقودة (Restoring Buttons Logic) ---
     try:
         exams = application.bot_data.get('exams', {})
         menus = application.bot_data.get('menus', default_menus())
+        if "main_menu" not in menus:
+            menus["main_menu"] = {"columns": 2, "buttons": []}
+            
         buttons = menus.get("main_menu", {}).get("buttons", [])
         existing_callbacks = {btn.get('callback', '') for btn in buttons}
         
-        # Check all exams in database
+        # 6-أ: استعادة أزرار الاختبارات العادية
         added_count = 0
         for exam_id, exam in exams.items():
-            # Check for regular exam button
             callback = f"dynamic_exam_{exam_id}"
             if callback not in existing_callbacks and not exam.get('is_hidden', False):
                 buttons.append({
@@ -7524,22 +7505,14 @@ async def main():
             menus["main_menu"]["buttons"] = buttons
             application.bot_data["menus"] = menus
             save_menus(menus, conn)
-            logging.info(f"Restored {added_count} missing exam buttons from database")
-    except Exception as e:
-        logging.error(f"Error restoring exam buttons: {e}")
-    
-    # Load and restore exam_no_explanation_buttons to menus if missing
-    try:
+            logging.info(f"Restored {added_count} missing exam buttons")
+
+        # 6-ب: استعادة أزرار (بدون شرح) exam_no_explanation
         cursor = conn.cursor()
         cursor.execute("SELECT exam_id, button_text FROM exam_no_explanation_buttons")
         rows = cursor.fetchall()
         if rows:
-            menus = application.bot_data.get('menus', default_menus())
-            buttons = menus.get("main_menu", {}).get("buttons", [])
-            existing_callbacks = {btn.get('callback', '') for btn in buttons}
-            
-            # Add missing buttons
-            added_count = 0
+            added_no_exp = 0
             for exam_id, button_text in rows:
                 callback = f"dynamic_exam_no_explanation_{exam_id}"
                 if callback not in existing_callbacks:
@@ -7548,96 +7521,38 @@ async def main():
                         "callback": callback
                     })
                     existing_callbacks.add(callback)
-                    added_count += 1
-            
-            if added_count > 0:
-                # Update menus directly
-                if "main_menu" not in menus:
-                    menus["main_menu"] = {"columns": 2, "buttons": []}
+                    added_no_exp += 1
+            if added_no_exp > 0:
                 menus["main_menu"]["buttons"] = buttons
                 application.bot_data["menus"] = menus
                 save_menus(menus, conn)
-                logging.info(f"Restored {added_count} exam_no_explanation buttons to main menu")
-    except Exception as e:
-        logging.error(f"Error loading exam_no_explanation_buttons: {e}")
-    
-    # بدء السيرفر الوهمي في خيط منفصل (اختياري)
-    if ENABLE_WEB_DASHBOARD and ADMIN_PASSWORD:
-        print("Starting Web Dashboard...")
-        threading.Thread(target=start_web_server, daemon=True).start()
-    else:
-        print("Web Dashboard disabled (ENABLE_WEB_DASHBOARD is false or ADMIN_PASSWORD not set).")
+                logging.info(f"Restored {added_no_exp} no-explanation buttons")
 
+    except Exception as e:
+        logging.error(f"Error restoring buttons: {e}")
+
+    # 7. جدولة المهام (Job Queue) - تصدير البيانات كل ساعة
+    if ADMIN_TELEGRAM_ID and application.job_queue:
+        try:
+            application.job_queue.run_repeating(
+                scheduled_user_progress_job,
+                interval=3600,
+                first=60
+            )
+            logging.info("Scheduled user_progress export job.")
+        except Exception as e:
+            logging.warning(f"Job queue error: {e}")
+
+    # 8. تشغيل السيرفر الوهمي (Web Dashboard)
+    # ملاحظة: تأكد أن start_web_server معرفة خارج الـ main كما اتفقنا
+    print("Starting Web Dashboard...")
+    threading.Thread(target=start_web_server, daemon=True).start()
+
+    # 9. تشغيل البوت أخيراً (هذا السطر هو الذي يبقي البوت يعمل)
     print("Bot is running...")
-
-    debug_log("bot.py:main", "About to call application.initialize()", {}, "D")
-
-    # Test network connectivity before initialize
-    debug_log("bot.py:main", "Testing network connectivity", {}, "A")
-    try:
-        import httpx
-        timeout = httpx.Timeout(10.0)  # 10 second timeout
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.get("https://api.telegram.org/bot" + TOKEN + "/getMe")
-            debug_log("bot.py:main", "Network test succeeded", {"status_code": response.status_code}, "A")
-    except Exception as e:
-        debug_log("bot.py:main", "Network test failed", {"error": str(e), "error_type": type(e).__name__}, "A")
-        print(f"Network connectivity test failed: {e}")
-
-    try:
-        await application.initialize()
-        debug_log("bot.py:main", "application.initialize() succeeded", {}, "D")
-    except Exception as e:
-        debug_log("bot.py:main", "application.initialize() failed", {"error": str(e), "error_type": type(e).__name__}, "D")
-        print(f"Failed to initialize application: {e}")
-        return
-    await application.start()
-    try:
-        await application.bot.delete_webhook(drop_pending_updates=True)
-    except Exception as e:
-        logging.warning(f"Could not delete webhook: {e}")
     
-    # Schedule user_progress export job to run every hour
-    if ADMIN_TELEGRAM_ID:
-        # Check if job_queue is available
-        if hasattr(application, 'job_queue') and application.job_queue is not None:
-            try:
-                # Run every hour (3600 seconds)
-                application.job_queue.run_repeating(
-                    scheduled_user_progress_job,
-                    interval=3600,  # 1 hour in seconds
-                    first=60  # Start after 1 minute (to allow bot to fully initialize)
-                )
-                logging.info("Scheduled user_progress export job to run every hour")
-            except Exception as e:
-                logging.warning(f"Could not schedule user_progress export job: {e}")
-                logging.warning("To enable job scheduling, install: pip install 'python-telegram-bot[job-queue]'")
-        else:
-            logging.warning("JobQueue not available. To enable automatic user_progress export, install: pip install 'python-telegram-bot[job-queue]'")
-    else:
-        logging.warning("ADMIN_TELEGRAM_ID not set, user_progress export job not scheduled")
-    
-    debug_log("bot.py:main", "About to start polling", {}, "E")
-    try:
-        await application.updater.start_polling()
-        debug_log("bot.py:main", "Polling started successfully", {}, "E")
-    except Exception as e:
-        debug_log("bot.py:main", "Failed to start polling", {"error": str(e), "error_type": type(e).__name__}, "E")
-        print(f"Failed to start polling: {e}")
-        return
-
-    try:
-        # Keep running until interrupted
-        debug_log("bot.py:main", "Entering main event loop", {}, "E")
-        await asyncio.Event().wait()
-    except (KeyboardInterrupt, SystemExit):
-        debug_log("bot.py:main", "Received shutdown signal", {}, "E")
-        print("Stopping bot...")
-    finally:
-        await application.updater.stop()
-        await application.stop()
-        await application.shutdown()
+    # drop_pending_updates=True: يتجاهل الرسائل القديمة أثناء التوقف لتجنب التكرار
+    application.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
-        import asyncio
-        asyncio.run(main())
+    main()
