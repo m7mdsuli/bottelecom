@@ -21,7 +21,7 @@ import time
 # ------------------- إعدادات البوت الآمنة -------------------
 # يتم تحميل القيم من ملف .env أو من متغيرات بيئة الخادم
 load_dotenv()
-TOKEN = os.getenv("BOT_TOKEN", "")
+TOKEN = os.environ.get("BOT_TOKEN")
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
