@@ -3322,7 +3322,7 @@ async def handle_admin_exam_media_no(update: Update, context: ContextTypes.DEFAU
         )
 
 async def handle_admin_exam_media_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Prompt admin to add media to explanation."""
+    """Prompt admin to add media to explanation using buttons."""
     structure = context.user_data['admin_exam_create'].get('explanation_structure', {})
     if not structure:
         if hasattr(update, 'callback_query') and update.callback_query:
@@ -3332,180 +3332,174 @@ async def handle_admin_exam_media_prompt(update: Update, context: ContextTypes.D
         context.user_data['admin_exam_create']['step'] = "question_type"
         return
     
-    # Show available IDs and levels
-    options_text = "📋 البنية المتاحة:\n"
+    keyboard = []
+    row = []
     for id_val in sorted(structure.keys()):
-        levels = structure[id_val]
-        options_text += f"• ID {id_val}: Levels {', '.join(map(str, levels))}\n"
+        row.append(InlineKeyboardButton(f"ID {id_val}", callback_data=f"admin_media_id_{id_val}"))
+        if len(row) == 3:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
     
-    text = (
-        f"{options_text}\n"
-        f"أرسل ID و Level الذي تريد إضافة media له:\n"
-        f"الصيغة: id|level\n"
-        f"مثال: 1|2 (لإضافة media للـ ID 1 و Level 2)\n\n"
-        f"أو اكتب 'انتهيت' للمتابعة بدون إضافة المزيد."
-    )
+    keyboard.append([InlineKeyboardButton("✅ انتهيت", callback_data="admin_media_finish")])
+    
+    text = "📸 إضافة وسائط للشرح:\n\nاختر ID لعرض مستوياته:"
     
     if hasattr(update, 'callback_query') and update.callback_query:
-        await update.callback_query.edit_message_text(text, reply_markup=admin_back_markup())
+        await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
     else:
-        await update.message.reply_text(text, reply_markup=admin_back_markup())
-    context.user_data['admin_exam_create']['step'] = "media_id"
+        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+    
+    context.user_data['admin_exam_create']['step'] = "media_selection"
 
-async def handle_admin_exam_media_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Receive ID and level for media attachment."""
-    text = update.message.text.strip().lower()
-    if text in ['انتهيت', 'done', 'finish']:
-        context.user_data['admin_exam_create']['step'] = "question_type"
-        await update.message.reply_text(
-            "✅ تم إنهاء إضافة media.\n\nاختر نوع الأسئلة:",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("1️⃣ MCQ", callback_data="admin_exam_type_mcq")],
-                [InlineKeyboardButton("2️⃣ Narrative", callback_data="admin_exam_type_narrative")],
-                [InlineKeyboardButton("↩️ رجوع", callback_data="admin_menu")]
-            ])
-        )
-        return
+async def handle_admin_media_select_id(update: Update, context: ContextTypes.DEFAULT_TYPE, id_val: int):
+    structure = context.user_data['admin_exam_create'].get('explanation_structure', {})
+    levels = structure.get(id_val, [])
     
-    if "|" not in text:
-        await update.message.reply_text("❌ الصيغة غير صحيحة. استخدم: id|level\nمثال: 1|2")
-        return
+    keyboard = []
+    row = []
+    media_attachments = context.user_data['admin_exam_create'].get('media_attachments', {})
     
-    try:
-        id_str, level_str = [p.strip() for p in text.split("|", 1)]
-        id_val = int(id_str)
-        level_val = int(level_str)
+    for level in sorted(levels):
+        media_key = f"{id_val}_{level}"
+        has_media = "✅ " if media_key in media_attachments else ""
+        row.append(InlineKeyboardButton(f"{has_media}Level {level}", callback_data=f"admin_media_level_{id_val}_{level}"))
+        if len(row) == 3:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
         
-        structure = context.user_data['admin_exam_create'].get('explanation_structure', {})
-        if id_val not in structure or level_val not in structure[id_val]:
-            await update.message.reply_text(f"❌ ID {id_val} و Level {level_val} غير موجود في البنية.")
+    keyboard.append([InlineKeyboardButton("↩️ رجوع للقائمة", callback_data="admin_exam_media_yes")])
+    
+    await update.callback_query.edit_message_text(
+        f"📸 ID {id_val}: اختر المستوى لإضافة/تعديل الوسائط:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+async def handle_admin_media_select_level(update: Update, context: ContextTypes.DEFAULT_TYPE, id_val: int, level: int):
+    context.user_data['admin_exam_create']['pending_media'] = {'id': id_val, 'level': level}
+    
+    keyboard = [
+        [InlineKeyboardButton("🖼️ صورة", callback_data="admin_media_type_photo")],
+        [InlineKeyboardButton("🎥 فيديو", callback_data="admin_media_type_video")],
+        [InlineKeyboardButton("🔗 رابط", callback_data="admin_media_type_url")],
+        [InlineKeyboardButton("↩️ رجوع للمستويات", callback_data=f"admin_media_id_{id_val}")]
+    ]
+    
+    media_attachments = context.user_data['admin_exam_create'].get('media_attachments', {})
+    media_key = f"{id_val}_{level}"
+    current_media = ""
+    if media_key in media_attachments:
+        m_type = media_attachments[media_key]['type']
+        current_media = f"\n\n⚠️ يوجد ميديا حالياً: {m_type}"
+    
+    await update.callback_query.edit_message_text(
+        f"📸 ID {id_val} - Level {level}\n\nاختر نوع الوسائط:{current_media}",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+async def handle_admin_media_set_type(update: Update, context: ContextTypes.DEFAULT_TYPE, media_type: str):
+    pending = context.user_data['admin_exam_create'].get('pending_media', {})
+    id_val = pending.get('id')
+    level = pending.get('level')
+    
+    context.user_data['admin_exam_create']['step'] = f"media_upload_{media_type}"
+    
+    prompt = {
+        "photo": "أرسل الصورة الآن:",
+        "video": "أرسل الفيديو الآن:",
+        "url": "أرسل الرابط الآن (http/https):"
+    }.get(media_type, "أرسل الوسائط:")
+    
+    keyboard = [[InlineKeyboardButton("↩️ إلغاء", callback_data=f"admin_media_level_{id_val}_{level}")]]
+    
+    await update.callback_query.edit_message_text(prompt, reply_markup=InlineKeyboardMarkup(keyboard))
+
+async def handle_admin_media_receive(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    step = context.user_data['admin_exam_create'].get('step', '')
+    if not step.startswith("media_upload_"):
+        return
+    
+    media_type = step.replace("media_upload_", "")
+    pending = context.user_data['admin_exam_create'].get('pending_media', {})
+    if not pending:
+        await update.message.reply_text("❌ حدث خطأ في الجلسة. ابدأ من جديد.")
+        return
+    
+    content = None
+    if media_type == "photo":
+        if update.message.photo:
+            content = update.message.photo[-1].file_id
+        elif update.message.document and update.message.document.mime_type and 'image' in update.message.document.mime_type:
+            content = update.message.document.file_id
+        else:
+            await update.message.reply_text("❌ يرجى إرسال صورة.")
             return
+    elif media_type == "video":
+        if update.message.video:
+            content = update.message.video.file_id
+        elif update.message.document and update.message.document.mime_type and 'video' in update.message.document.mime_type:
+            content = update.message.document.file_id
+        else:
+            await update.message.reply_text("❌ يرجى إرسال فيديو.")
+            return
+    elif media_type == "url":
+        content = update.message.text.strip()
+        if not content.startswith(('http://', 'https://')):
+            await update.message.reply_text("❌ رابط غير صحيح.")
+            return
+            
+    # Save
+    media_key = f"{pending['id']}_{pending['level']}"
+    if 'media_attachments' not in context.user_data['admin_exam_create']:
+        context.user_data['admin_exam_create']['media_attachments'] = {}
+    context.user_data['admin_exam_create']['media_attachments'][media_key] = {
+        'type': media_type,
+        'content': content
+    }
+    
+    await update.message.reply_text(f"✅ تم حفظ {media_type}.")
+    
+    # Return to levels list
+    structure = context.user_data['admin_exam_create'].get('explanation_structure', {})
+    id_val = pending['id']
+    levels = structure.get(id_val, [])
+    
+    keyboard = []
+    row = []
+    media_attachments = context.user_data['admin_exam_create'].get('media_attachments', {})
+    
+    for level in sorted(levels):
+        m_key = f"{id_val}_{level}"
+        has_media = "✅ " if m_key in media_attachments else ""
+        row.append(InlineKeyboardButton(f"{has_media}Level {level}", callback_data=f"admin_media_level_{id_val}_{level}"))
+        if len(row) == 3:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
         
-        # Store pending media attachment
-        context.user_data['admin_exam_create']['pending_media'] = {
-            'id': id_val,
-            'level': level_val
-        }
-        context.user_data['admin_exam_create']['step'] = "media_type"
-        
-        await update.message.reply_text(
-            f"✅ تم تحديد ID {id_val} و Level {level_val}.\n\n"
-            f"اختر نوع الـ media:\n"
-            f"1️⃣ صورة\n"
-            f"2️⃣ فيديو\n"
-            f"3️⃣ رابط URL",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("1️⃣ صورة", callback_data="admin_exam_media_photo")],
-                [InlineKeyboardButton("2️⃣ فيديو", callback_data="admin_exam_media_video")],
-                [InlineKeyboardButton("3️⃣ رابط", callback_data="admin_exam_media_url")],
-                [InlineKeyboardButton("↩️ إلغاء", callback_data="admin_menu")]
-            ])
-        )
-    except ValueError:
-        await update.message.reply_text("❌ يرجى إدخال أرقام صحيحة. مثال: 1|2")
-
-async def handle_admin_exam_media_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle media type selection - this is called from button handler."""
-    # This will be handled in button_handler
-    pass
-
-async def handle_admin_exam_media_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Receive URL for media attachment."""
-    url = update.message.text.strip()
-    if not url.startswith(('http://', 'https://')):
-        await update.message.reply_text("❌ يرجى إرسال رابط صحيح يبدأ بـ http:// أو https://")
-        return
-    
-    pending = context.user_data['admin_exam_create'].get('pending_media', {})
-    if not pending:
-        await update.message.reply_text("❌ لم يتم تحديد ID و Level. ابدأ من جديد.")
-        context.user_data['admin_exam_create']['step'] = "media_id"
-        return
-    
-    # Store media attachment
-    media_key = f"{pending['id']}_{pending['level']}"
-    if 'media_attachments' not in context.user_data['admin_exam_create']:
-        context.user_data['admin_exam_create']['media_attachments'] = {}
-    context.user_data['admin_exam_create']['media_attachments'][media_key] = {
-        'type': 'url',
-        'content': url
-    }
+    keyboard.append([InlineKeyboardButton("↩️ رجوع للقائمة", callback_data="admin_exam_media_yes")])
     
     await update.message.reply_text(
-        f"✅ تم حفظ الرابط للـ ID {pending['id']} و Level {pending['level']}.\n\n"
-        f"أرسل id|level آخر لإضافة media آخر، أو 'انتهيت' للمتابعة.",
-        reply_markup=admin_back_markup()
+        f"📸 ID {id_val}: اختر المستوى لإضافة/تعديل الوسائط:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
-    context.user_data['admin_exam_create'].pop('pending_media', None)
-    context.user_data['admin_exam_create']['step'] = "media_id"
+    context.user_data['admin_exam_create']['step'] = "media_selection"
 
-async def handle_admin_exam_media_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Receive photo for media attachment."""
-    pending = context.user_data['admin_exam_create'].get('pending_media', {})
-    if not pending:
-        await update.message.reply_text("❌ لم يتم تحديد ID و Level. ابدأ من جديد.")
-        context.user_data['admin_exam_create']['step'] = "media_id"
-        return
-    
-    # Get photo file_id
-    if update.message.photo:
-        file_id = update.message.photo[-1].file_id
-    elif update.message.document and update.message.document.mime_type and 'image' in update.message.document.mime_type:
-        file_id = update.message.document.file_id
-    else:
-        await update.message.reply_text("❌ يرجى إرسال صورة.")
-        return
-    
-    # Store media attachment
-    media_key = f"{pending['id']}_{pending['level']}"
-    if 'media_attachments' not in context.user_data['admin_exam_create']:
-        context.user_data['admin_exam_create']['media_attachments'] = {}
-    context.user_data['admin_exam_create']['media_attachments'][media_key] = {
-        'type': 'photo',
-        'content': file_id
-    }
-    
-    await update.message.reply_text(
-        f"✅ تم حفظ الصورة للـ ID {pending['id']} و Level {pending['level']}.\n\n"
-        f"أرسل id|level آخر لإضافة media آخر، أو 'انتهيت' للمتابعة.",
-        reply_markup=admin_back_markup()
+async def handle_admin_media_finish(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data['admin_exam_create']['step'] = "question_type"
+    await update.callback_query.edit_message_text(
+        "✅ تم إنهاء إضافة media.\n\nاختر نوع الأسئلة:",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("1️⃣ MCQ", callback_data="admin_exam_type_mcq")],
+            [InlineKeyboardButton("2️⃣ Narrative", callback_data="admin_exam_type_narrative")],
+            [InlineKeyboardButton("📝 + ✍️ كليهما (مثل مازن)", callback_data="admin_exam_type_both")],
+            [InlineKeyboardButton("↩️ رجوع", callback_data="admin_menu")]
+        ])
     )
-    context.user_data['admin_exam_create'].pop('pending_media', None)
-    context.user_data['admin_exam_create']['step'] = "media_id"
-
-async def handle_admin_exam_media_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Receive video for media attachment."""
-    pending = context.user_data['admin_exam_create'].get('pending_media', {})
-    if not pending:
-        await update.message.reply_text("❌ لم يتم تحديد ID و Level. ابدأ من جديد.")
-        context.user_data['admin_exam_create']['step'] = "media_id"
-        return
-    
-    # Get video file_id
-    if update.message.video:
-        file_id = update.message.video.file_id
-    elif update.message.document and update.message.document.mime_type and 'video' in update.message.document.mime_type:
-        file_id = update.message.document.file_id
-    else:
-        await update.message.reply_text("❌ يرجى إرسال فيديو.")
-        return
-    
-    # Store media attachment
-    media_key = f"{pending['id']}_{pending['level']}"
-    if 'media_attachments' not in context.user_data['admin_exam_create']:
-        context.user_data['admin_exam_create']['media_attachments'] = {}
-    context.user_data['admin_exam_create']['media_attachments'][media_key] = {
-        'type': 'video',
-        'content': file_id
-    }
-    
-    await update.message.reply_text(
-        f"✅ تم حفظ الفيديو للـ ID {pending['id']} و Level {pending['level']}.\n\n"
-        f"أرسل id|level آخر لإضافة media آخر، أو 'انتهيت' للمتابعة.",
-        reply_markup=admin_back_markup()
-    )
-    context.user_data['admin_exam_create'].pop('pending_media', None)
-    context.user_data['admin_exam_create']['step'] = "media_id"
 
 async def handle_admin_broadcast_receive(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
