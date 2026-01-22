@@ -2793,8 +2793,11 @@ async def handle_admin_exam_create_explanation(update: Update, context: ContextT
         # Group by ID and count levels
         structure = {}
         for _, row in df.iterrows():
-            id_val = row.get('id', 1)
-            level = row.get('level', 1)
+            try:
+                id_val = int(row.get('id', 1))
+                level = int(row.get('level', 1))
+            except (ValueError, TypeError):
+                continue
             if id_val not in structure:
                 structure[id_val] = []
             if level not in structure[id_val]:
@@ -3243,8 +3246,8 @@ async def handle_admin_document(update: Update, context: ContextTypes.DEFAULT_TY
         await handle_admin_exam_create_explanation(update, context)
     elif step in ["mcq_questions", "narrative_questions", "questions"]:
         await handle_admin_exam_create_questions(update, context)
-    elif step in ["media_photo", "media_video"]:
-        await handle_admin_media(update, context)
+    elif step and step.startswith("media_upload_"):
+        await handle_admin_media_receive(update, context)
 
 async def handle_admin_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle photo/video uploads for exam media attachments."""
@@ -3256,10 +3259,8 @@ async def handle_admin_media(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
     
     step = context.user_data['admin_exam_create'].get('step')
-    if step == "media_photo":
-        await handle_admin_exam_media_photo(update, context)
-    elif step == "media_video":
-        await handle_admin_exam_media_video(update, context)
+    if step and step.startswith("media_upload_"):
+        await handle_admin_media_receive(update, context)
 
 async def handle_admin_exam_media_yes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle 'yes' response for adding media."""
@@ -3354,8 +3355,16 @@ async def handle_admin_exam_media_prompt(update: Update, context: ContextTypes.D
     context.user_data['admin_exam_create']['step'] = "media_selection"
 
 async def handle_admin_media_select_id(update: Update, context: ContextTypes.DEFAULT_TYPE, id_val: int):
+    if 'admin_exam_create' not in context.user_data:
+        await update.callback_query.answer("⚠️ انتهت الجلسة. يرجى البدء من جديد.", show_alert=True)
+        return
+
     structure = context.user_data['admin_exam_create'].get('explanation_structure', {})
-    levels = structure.get(id_val, [])
+    
+    # Robust lookup for levels (handle int/str mismatch)
+    levels = structure.get(id_val)
+    if levels is None:
+        levels = structure.get(str(id_val), [])
     
     keyboard = []
     row = []
@@ -3379,6 +3388,10 @@ async def handle_admin_media_select_id(update: Update, context: ContextTypes.DEF
     )
 
 async def handle_admin_media_select_level(update: Update, context: ContextTypes.DEFAULT_TYPE, id_val: int, level: int):
+    if 'admin_exam_create' not in context.user_data:
+        await update.callback_query.answer("⚠️ انتهت الجلسة. يرجى البدء من جديد.", show_alert=True)
+        return
+
     context.user_data['admin_exam_create']['pending_media'] = {'id': id_val, 'level': level}
     
     keyboard = [
@@ -3401,6 +3414,10 @@ async def handle_admin_media_select_level(update: Update, context: ContextTypes.
     )
 
 async def handle_admin_media_set_type(update: Update, context: ContextTypes.DEFAULT_TYPE, media_type: str):
+    if 'admin_exam_create' not in context.user_data:
+        await update.callback_query.answer("⚠️ انتهت الجلسة. يرجى البدء من جديد.", show_alert=True)
+        return
+
     pending = context.user_data['admin_exam_create'].get('pending_media', {})
     id_val = pending.get('id')
     level = pending.get('level')
@@ -3490,6 +3507,10 @@ async def handle_admin_media_receive(update: Update, context: ContextTypes.DEFAU
     context.user_data['admin_exam_create']['step'] = "media_selection"
 
 async def handle_admin_media_finish(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if 'admin_exam_create' not in context.user_data:
+        await update.callback_query.answer("⚠️ انتهت الجلسة. يرجى البدء من جديد.", show_alert=True)
+        return
+
     context.user_data['admin_exam_create']['step'] = "question_type"
     await update.callback_query.edit_message_text(
         "✅ تم إنهاء إضافة media.\n\nاختر نوع الأسئلة:",
@@ -3693,21 +3714,9 @@ async def handle_admin_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply_markup=admin_back_markup()
                 )
                 return True
-        elif step == "ask_media":
-            # Handle yes/no text response (fallback if buttons weren't used)
-            text = update.message.text.strip().lower()
-            if text in ['نعم', 'yes', 'y', 'ن']:
-                await handle_admin_exam_media_yes(update, context)
-                return True
-            elif text in ['لا', 'no', 'n', 'ل']:
-                await handle_admin_exam_media_no(update, context)
-                return True
-            else:
-                await update.message.reply_text(
-                    "❌ يرجى اختيار 'نعم' أو 'لا' من الأزرار أعلاه.",
-                    reply_markup=admin_back_markup()
-                )
-                return True
+        elif step and step.startswith("media_upload_"):
+            await handle_admin_media_receive(update, context)
+            return True
     # Route admin text to broadcast or search flows
     if not is_admin_user(update.effective_user.id):
         return
@@ -5806,6 +5815,26 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if data == "admin_exam_media_no":
         await handle_admin_exam_media_no(update, context)
+        return
+    if data.startswith("admin_media_id_"):
+        id_val = int(data.replace("admin_media_id_", ""))
+        await handle_admin_media_select_id(update, context, id_val)
+        return
+    if data.startswith("admin_media_level_"):
+        parts = data.replace("admin_media_level_", "").split("_")
+        id_val = int(parts[0])
+        level = int(parts[1])
+        await handle_admin_media_select_level(update, context, id_val, level)
+        return
+    if data.startswith("admin_media_type_"):
+        m_type = data.replace("admin_media_type_", "")
+        await handle_admin_media_set_type(update, context, m_type)
+        return
+    if data == "admin_media_back_ids":
+        await handle_admin_exam_media_prompt(update, context)
+        return
+    if data == "admin_media_finish":
+        await handle_admin_media_finish(update, context)
         return
     if data == "admin_exam_type_mcq":
         await handle_admin_exam_type_choice(update, context, "mcq")
