@@ -4465,7 +4465,6 @@ async def send_dynamic_exam_text(update: Update, context: ContextTypes.DEFAULT_T
                 return
     
     # Check if there's media attached to this ID and level
-    exam = load_exams().get(exam_id, {})
     media_attachments = exam.get('media_attachments', {})
     media_key = f"{current_id}_{current_level}"
     media_info = media_attachments.get(media_key)
@@ -5120,7 +5119,8 @@ async def finish_dynamic_exam(update: Update, context: ContextTypes.DEFAULT_TYPE
     # We'll try to delete messages that might be completion messages
     # Note: We can't track all messages, but we'll delete the ones we track
     
-    exam = load_exams().get(exam_id, {})
+    conn = context.bot_data.get('db_conn')
+    exam = load_exams(conn).get(exam_id, {})
     exam_name = exam.get('button_text', 'الاختبار')
     exam_state = context.user_data.get('dynamic_exam', {})
     current_id = exam_state.get('current_id', 1)
