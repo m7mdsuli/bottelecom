@@ -3206,13 +3206,19 @@ async def finalize_exam_creation(update: Update, context: ContextTypes.DEFAULT_T
         admin_back_markup().inline_keyboard[0]
     ]
     
-    await update.message.reply_text(
+    text = (
         f"✅ تم إنشاء الاختبار بنجاح!\n\n"
         f"اسم الزر: {exam_data['button_text']}\n"
         f"نوع الأسئلة: {type_desc}\n"
-        f"تم إضافة الزر إلى القائمة الرئيسية تلقائياً.",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        f"تم إضافة الزر إلى القائمة الرئيسية تلقائياً."
     )
+    
+    if update.message:
+        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+    elif update.callback_query and update.callback_query.message:
+        await update.callback_query.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+    else:
+        await context.bot.send_message(chat_id=user.id, text=text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def handle_admin_broadcast_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
